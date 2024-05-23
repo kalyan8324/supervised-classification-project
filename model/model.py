@@ -1,3 +1,9 @@
+#  Steps: load image into cv2 open_cv
+#  data preprocessing 
+#  1. convert to grayscale
+#  2. blur image
+#  3. threshold image
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,6 +11,7 @@ import seaborn as sns
 import os
 import cv2
 import shutil
+import pywt 
 
 image_path = '/home/maren/Downloads/Python-project/datasets/crickte-players/images/virat_kohli/5bc384d5d8.jpg'
 face_cascade_path = '/home/maren/Downloads/Python-project/cricket-CelebrityFaceRecognition/model/opencv/haarcascades/haarcascade_frontalface_default.xml'
@@ -42,10 +49,10 @@ new_img_path = '/home/maren/Downloads/Python-project/datasets/crickte-players/im
 cropped_img = get_cropped_images_if_2_eyes(new_img_path)
 
 img_dir = img_dir = [entry.name for entry in os.scandir(path_to_dir) if entry.is_dir()]
+print("image dir => :",img_dir)
 cropped_img_dir = []
 celebrity_file_name_dic = {}
 for imgs in img_dir:
-    print(imgs)
     count = 1
     celebrity_file_name_dic[imgs] = []
     for img in os.listdir(path_to_dir + imgs):
@@ -60,6 +67,51 @@ for imgs in img_dir:
             cv2.imwrite(cropped_file_path, crop_imges)
             celebrity_file_name_dic[imgs].append(cropped_file_path)
             count += 1
+
+def w2d(img,mode='haar',level=1):
+    imArray = img
+    #Datatype conversions
+    #convert to grayscale
+    imArray = cv2.cvtColor(imArray,cv2.COLOR_RGB2GRAY)
+    #convert to float
+    imArray = np.float32(imArray)
+    imArray = imArray/255
+    # compute coefficients
+    coeffs=pywt.wavedec2(imArray,mode,level=level)
+    #Process Coefficients
+    coeffs_H=list(coeffs)
+    coeffs_H[0] *= 0
+    # reconstruction
+    imArray_H=pywt.waverec2(coeffs_H,mode)
+    imArray_H *= 255
+    imArray_H = np.uint8(imArray_H)
+    return imArray_H
+    
+
+# cropped_image used to model training 
+x,y = [],[]
+for celebrity_name, trainig_file in celebrity_file_name_dic.items():
+    for file in trainig_file:
+        img = cv2.imread(file)
+        scalled_raw_img = cv2.resize(img,(32,32))
+        img_har = w2d(img,'db1',5)
+        scalled_img_har = cv2.resize(img_har, (32, 32))
+        combined_img = np.vstack((scalled_raw_img.reshape(32*32*3,1),scalled_img_har.reshape(32*32,1)))
+        x.append(combined_img)
+        y.append(celebrity_name)
+
+
+x = np.array(x).reshape(len(x), 4096).astype(float)
+y = np.array(y)
+print("llll",x.shape)
+#  Building model using x , y varibles 
+
+
+
+
+
+
+
 # for entry in os.scandir(path_to_dir):
 #     if entry.is_dir():
 #         img_dir.append(entry.path)       
@@ -67,14 +119,14 @@ for imgs in img_dir:
 #     shutil.rmtree(to_path_dir)
 # os.mkdir(to_path_dir)
 # print(img)
-if cropped_img is not None:
-    plt.imshow(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
-    plt.title('Cropped Image with Two Eyes Detected')
-    plt.axis('off')
-    plt.show()
-else:
-    print("No face detected")
-    
+# if cropped_img is not None:
+#     plt.imshow(cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB))
+#     plt.title('Cropped Image with Two Eyes Detected')
+#     plt.axis('off')
+#     plt.show()
+# else:
+#     print("No face detected")
+
 # if not os.path.exists(image_path):
 #     print("no image available")
 # else:
